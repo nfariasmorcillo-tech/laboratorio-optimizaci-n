@@ -61,7 +61,12 @@ if calcular:
                 c2.latex(rf"f_y = \frac{{\partial f}}{{\partial y}} = {sp.latex(fy)}")
                 
                 st.subheader("Sistema a resolver para puntos estacionarios:")
-                st.latex(rf"\begin{{cases}} {sp.latex(fx)} = 0 \\ {sp.latex(fy)} = 0 \end{cases}")
+                # Usamos formateo clásico de Python para evitar que Streamlit se confunda con las llaves de LaTeX
+                sistema_libre = r"\begin{cases} " + sp.latex(fx) + r" = 0 \\ " + sp.latex(fy) + r" = 0 \end{cases}"
+                st.latex(sistema_libre)
+
+
+
                 
                 # Resolver
                 puntos = sp.solve([fx, fy], (x, y), dict=True)
@@ -141,7 +146,9 @@ if calcular:
                 c2.latex(rf"g_y = \frac{{\partial g}}{{\partial y}} = {sp.latex(gy)}")
                 
                 st.subheader("Sistema a resolver (Condiciones de Primer Orden):")
-                st.latex(rf"\begin{{cases}} \mathcal{{L}}_x = {sp.latex(Lx)} = 0 \\ \mathcal{{L}}_y = {sp.latex(Ly)} = 0 \\ \mathcal{{L}}_\lambda = {sp.latex(Llam)} = 0 \end{cases}")
+                sistema_condicionado = r"\begin{cases} \mathcal{L}_x = " + sp.latex(Lx) + r" = 0 \\ \mathcal{L}_y = " + sp.latex(Ly) + r" = 0 \\ \mathcal{L}_\lambda = " + sp.latex(Llam) + r" = 0 \end{cases}"
+                st.latex(sistema_condicionado)
+
                 
                 # Resolver
                 puntos = sp.solve([Lx, Ly, Llam], (x, y, lam), dict=True)
