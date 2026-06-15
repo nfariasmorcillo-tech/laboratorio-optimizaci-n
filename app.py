@@ -61,7 +61,6 @@ if calcular:
                 c2.latex(rf"f_y = \frac{{\partial f}}{{\partial y}} = {sp.latex(fy)}")
                 
                 st.subheader("Sistema a resolver para puntos estacionarios:")
-                # Concatenación segura para evitar errores de renderizado de llaves en Streamlit
                 sistema_libre = r"\begin{cases} " + sp.latex(fx) + r" = 0 \\ " + sp.latex(fy) + r" = 0 \end{cases}"
                 st.latex(sistema_libre)
                 
@@ -82,7 +81,10 @@ if calcular:
                 if len(puntos) > 0:
                     st.header("3. Tabla de Clasificación de Óptimos")
                     
-                    filas_html = ""
+                    # Definición de la cabecera en formato Tabla de Markdown
+                    tabla_md = "| Punto $(x,y)$ | $f_{xx}$ ($H_1$) | $f_{xy}$ (Cruzada) | $|H|$ ($H_2$) | Tipo de Punto | Valor $f(x,y)$ |\n"
+                    tabla_md += "| :---: | :---: | :---: | :---: | :---: | :---: |\n"
+                    
                     for p in puntos:
                         if p[x].evalf().is_imaginary or p[y].evalf().is_imaginary:
                             continue
@@ -91,22 +93,27 @@ if calcular:
                         val_f = f.subs(p)
                         
                         if det_p > 0:
-                            tipo = "<b style='color:green;'>Mínimo Local</b>" if fxx_p > 0 else "<b style='color:blue;'>Máximo Local</b>"
+                            tipo = "🟢 **Mínimo Local**" if fxx_p > 0 else "🔵 **Máximo Local**"
                         elif det_p < 0:
-                            tipo = "<b style='color:red;'>Punto Silla</b>"
+                            tipo = "🔴 **Punto Silla**"
                         else:
-                            tipo = "<span style='color:gray;'>No decide</span>"
+                            tipo = "⚪ *No decide*"
                             
-                        # Construcción compacta en una sola línea lógica para prevenir errores de Markdown
-                        filas_html += f"<tr><td>$({sp.latex(p[x])}, {sp.latex(p[y])})$<br><small>≈ ({p[x].evalf():.2f}, {p[y].evalf():.2f})</small></td>" \
-                                      f"<td>${sp.latex(fxx_p)}$</td>" \
-                                      f"<td>${sp.latex(H_gen.subs(p)[0,1])}$</td>" \
-                                      f"<td>${sp.latex(det_p)}$<br><small>≈ {det_p.evalf():.2f}</small></td>" \
-                                      f"<td>{tipo}</td>" \
-                                      f"<td>${sp.latex(val_f)}$<br><small>≈ {val_f.evalf():.2f}</small></td></tr>"
+                        # Reemplazamos saltos de línea por espacios en expresiones LaTeX para la tabla
+                        latex_punto = f"({sp.latex(p[x])}, {sp.latex(p[y])})".replace('\n', ' ')
+                        latex_fxx = f"{sp.latex(fxx_p)}".replace('\n', ' ')
+                        latex_fxy = f"{sp.latex(H_gen.subs(p)[0,1])}".replace('\n', ' ')
+                        latex_det = f"{sp.latex(det_p)}".replace('\n', ' ')
+                        latex_val = f"{sp.latex(val_f)}".replace('\n', ' ')
+                        
+                        tabla_md += f"| ${latex_punto}$ <br> <small>≈ ({p[x].evalf():.2f}, {p[y].evalf():.2f})</small> " \
+                                    f"| ${latex_fxx}$ " \
+                                    f"| ${latex_fxy}$ " \
+                                    f"| ${latex_det}$ <br> <small>≈ {det_p.evalf():.2f}</small> " \
+                                    f"| {tipo} " \
+                                    f"| ${latex_val}$ <br> <small>≈ {val_f.evalf():.2f}</small> |\n"
                     
-                    tabla_completa = f'<table border="1" style="width:100%; text-align:center; border-collapse:collapse; background-color:#faf8f5;"><tr style="background-color:#fff3cd; font-weight:bold;"><th>Punto (x,y)</th><th>f_xx (H1)</th><th>f_xy (Cruzada)</th><th>|H| (H2)</th><th>Tipo de Punto</th><th>Valor f(x,y)</th></tr>{filas_html}</table>'
-                    st.markdown(tabla_completa, unsafe_allow_html=True)
+                    st.markdown(tabla_md)
                 else:
                     st.warning("No se hallaron puntos críticos reales.")
 
@@ -132,7 +139,6 @@ if calcular:
                 c2.latex(rf"g_y = \frac{{\partial g}}{{\partial y}} = {sp.latex(gy)}")
                 
                 st.subheader("Sistema a resolver (Condiciones de Primer Orden):")
-                # Concatenación segura de llaves matemáticas
                 sistema_condicionado = r"\begin{cases} \mathcal{L}_x = " + sp.latex(Lx) + r" = 0 \\ \mathcal{L}_y = " + sp.latex(Ly) + r" = 0 \\ \mathcal{L}_\lambda = " + sp.latex(Llam) + r" = 0 \end{cases}"
                 st.latex(sistema_condicionado)
                 
@@ -155,7 +161,10 @@ if calcular:
                 if len(puntos) > 0:
                     st.header("5. Resultados y Criterio del Hessiano Orlado")
                     
-                    filas_html = ""
+                    # Definición de la cabecera en formato Tabla de Markdown
+                    tabla_md = "| Punto $(x,y)$ | Valor de $\\lambda$ | HOR Evaluado | $|HOR|$ (Det) | Tipo de Óptimo | Valor $f(x,y)$ |\n"
+                    tabla_md += "| :---: | :---: | :---: | :---: | :---: | :---: |\n"
+                    
                     for p in puntos:
                         if p[x].evalf().is_imaginary or p[y].evalf().is_imaginary:
                             continue
@@ -163,18 +172,23 @@ if calcular:
                         hor_eval = HOR.subs(p)
                         val_f = f.subs({x: p[x], y: p[y]})
                         
-                        tipo = "<b style='color:blue;'>Máximo Local sujeto a g</b>" if det_p > 0 else "<b style='color:green;'>Mínimo Local sujeto a g</b>" if det_p < 0 else "No decide"
+                        tipo = "🔵 **Máximo Local sujeto a $g$**" if det_p > 0 else "🟢 **Mínimo Local sujeto a $g$**" if det_p < 0 else "⚪ *No decide*"
                         
-                        # Construcción en una sola línea continua usando caracteres de escape \ para mantener el HTML limpio
-                        filas_html += f"<tr><td>$({sp.latex(p[x])}, {sp.latex(p[y])})$<br><small>≈ ({p[x].evalf():.2f}, {p[y].evalf():.2f})</small></td>" \
-                                      f"<td>${sp.latex(p[lam])}$<br><small>≈ {p[lam].evalf():.2f}</small></td>" \
-                                      f"<td style='padding:8px;'>${sp.latex(hor_eval)}$</td>" \
-                                      f"<td>${sp.latex(det_p)}$<br><small>≈ {det_p.evalf():.2f}</small></td>" \
-                                      f"<td>{tipo}</td>" \
-                                      f"<td>${sp.latex(val_f)}$<br><small>≈ {val_f.evalf():.2f}</small></td></tr>"
+                        # Reemplazamos saltos de línea internos por espacios para no quebrar las celdas Markdown
+                        latex_punto = f"({sp.latex(p[x])}, {sp.latex(p[y])})".replace('\n', ' ')
+                        latex_lam = f"{sp.latex(p[lam])}".replace('\n', ' ')
+                        latex_hor = f"{sp.latex(hor_eval)}".replace('\n', ' ')
+                        latex_det = f"{sp.latex(det_p)}".replace('\n', ' ')
+                        latex_val = f"{sp.latex(val_f)}".replace('\n', ' ')
                         
-                    tabla_completa = f'<table border="1" style="width:100%; text-align:center; border-collapse:collapse; background-color:#faf8f5;"><tr style="background-color:#e2ece9; font-weight:bold;"><th>Punto (x,y)</th><th>Valor de λ</th><th>HOR Evaluado</th><th>|HOR| (Det)</th><th>Tipo de Óptimo</th><th>Valor f(x,y)</th></tr>{filas_html}</table>'
-                    st.markdown(tabla_completa, unsafe_allow_html=True)
+                        tabla_md += f"| ${latex_punto}$ <br> <small>≈ ({p[x].evalf():.2f}, {p[y].evalf():.2f})</small> " \
+                                    f"| ${latex_lam}$ <br> <small>≈ {p[lam].evalf():.2f}</small> " \
+                                    f"| ${latex_hor}$ " \
+                                    f"| ${latex_det}$ <br> <small>≈ {det_p.evalf():.2f}</small> " \
+                                    f"| {tipo} " \
+                                    f"| ${latex_val}$ <br> <small>≈ {val_f.evalf():.2f}</small> |\n"
+                        
+                    st.markdown(tabla_md)
                 else:
                     st.warning("No se hallaron puntos críticos analíticos para el Lagrangiano.")
                     
