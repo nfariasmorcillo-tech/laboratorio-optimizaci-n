@@ -101,16 +101,16 @@ if calcular:
                         else:
                             tipo = "<span style='color:gray;'>No decide</span>"
                             
-                      filas_html += f"""
-                      <tr>
-                         <td>$({sp.latex(p[x])}, {sp.latex(p[y])})$<br><small>≈ ({p[x].evalf():.2f}, {p[y].evalf():.2f})</small></td>
-                         <td>${sp.latex(fxx_p)}$</td>
-                         <td>${sp.latex(H_gen.subs(p)[0,1])}$</td>
-                         <td>${sp.latex(det_p)}$<br><small>≈ {det_p.evalf():.2f}</small></td>
-                         <td>{tipo}</td>
-                         <td>${sp.latex(val_f)}$<br><small>≈ {val_f.evalf():.2f}</small></td>
-                      </tr>
-                      """
+                    filas_html += f"""
+                    <tr>
+                        <td>$({sp.latex(p[x])}, {sp.latex(p[y])})$<br><small>≈ ({p[x].evalf():.2f}, {p[y].evalf():.2f})</small></td>
+                        <td>${sp.latex(fxx_p)}$</td>
+                        <td>${sp.latex(H_gen.subs(p)[0,1])}$</td>
+                        <td>${sp.latex(det_p)}$<br><small>≈ {det_p.evalf():.2f}</small></td>
+                        <td>{tipo}</td>
+                        <td>${sp.latex(val_f)}$<br><small>≈ {val_f.evalf():.2f}</small></td>
+                    </tr>
+                    """
                     
                     tabla_completa = f"""
                     <table border="1" style="width:100%; text-align:center; border-collapse:collapse; background-color:#faf8f5;">
