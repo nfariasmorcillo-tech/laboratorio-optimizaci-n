@@ -1,0 +1,199 @@
+import streamlit as st
+import sympy as sp
+
+# Configuración de la página web
+st.set_page_config(page_title="Laboratorio de Optimización", page_icon="🧮", layout="wide")
+
+st.title("🧮 Laboratorio de Optimización Matemática")
+st.markdown("Herramienta pedagógica para el análisis de óptimos locales con y sin restricciones.")
+
+# Barra lateral para el ingreso de datos
+st.sidebar.header("📥 Configuración del Ejercicio")
+
+tipo_opt = st.sidebar.radio(
+    "Selecciona el tipo de optimización:",
+    ("Optimización Libre (Sin restricciones)", "Optimización Condicionada (Con restricciones)")
+)
+
+funcion_str = st.sidebar.text_input("Función Objetivo f(x,y):", value="x**2 + y**2 - 4*x - 6*y")
+variables_str = st.sidebar.text_input("Variables (separadas por coma):", value="x, y")
+
+restriccion_str = ""
+if tipo_opt == "Optimización Condicionada (Con restricciones)":
+    restriccion_str = st.sidebar.text_input("Restricción g(x,y) = 0:", value="x + y - 4")
+
+st.sidebar.info("**Nota de sintaxis:**\n* Usar `*` para multiplicar (ej: `4*x`).\n* Usar `**` para potencias (ej: `x**2`).")
+
+# Botón para ejecutar el cálculo
+calcular = st.sidebar.button("Calcular Óptimos", type="primary")
+
+if calcular:
+    try:
+        # Procesar variables
+        vars_list = [sp.Symbol(v.strip()) for v in variables_str.split(',') if v.strip()]
+        if len(vars_list) != 2:
+            st.error("Por favor, ingresa exactamente dos variables libres (ej: x, y).")
+        else:
+            x, y = vars_list[0], vars_list[1]
+            f = sp.sympify(funcion_str)
+            
+            # --- SECCIÓN: ENUNCIADO ---
+            col1, col2 = st.columns(2)
+            with col1:
+                st.latex(rf"\text{{Función Objetivo: }} f({sp.latex(x)}, {sp.latex(y)}) = {sp.latex(f)}")
+            with col2:
+                if tipo_opt == "Optimización Condicionada (Con restricciones)":
+                    g = sp.sympify(restriccion_str)
+                    st.latex(rf"\text{{Restricción: }} g({sp.latex(x)}, {sp.latex(y)}) = {sp.latex(g)} = 0")
+
+            st.divider()
+
+            # ==========================================
+            # CASO 1: OPTIMIZACIÓN LIBRE
+            # ==========================================
+            if tipo_opt == "Optimización Libre (Sin restricciones)":
+                st.header("1. Primeras Derivadas y Sistema de Ecuaciones")
+                fx = sp.diff(f, x)
+                fy = sp.diff(f, y)
+                
+                c1, c2 = st.columns(2)
+                c1.latex(rf"f_x = \frac{{\partial f}}{{\partial x}} = {sp.latex(fx)}")
+                c2.latex(rf"f_y = \frac{{\partial f}}{{\partial y}} = {sp.latex(fy)}")
+                
+                st.subheader("Sistema a resolver para puntos estacionarios:")
+                st.latex(rf"\begin{{cases}} {sp.latex(fx)} = 0 \\ {sp.latex(fy)} = 0 \end{cases}")
+                
+                # Resolver
+                puntos = sp.solve([fx, fy], (x, y), dict=True)
+                st.metric(label="Cantidad de puntos críticos encontrados", value=len(puntos))
+                
+                st.header("2. Segundas Derivadas y Matriz Hessiana")
+                fxx = sp.diff(fx, x)
+                fyy = sp.diff(fy, y)
+                fxy = sp.diff(fx, y)
+                H_gen = sp.Matrix([[fxx, fxy], [fxy, fyy]])
+                
+                st.latex(rf"\text{{Segunda derivada respecto a x: }} f_{{xx}} = {sp.latex(fxx)}")
+                st.latex(rf"\text{{Matriz Hessiana (H): }} {sp.latex(H_gen)}")
+                st.latex(rf"\text{{Hessiana (Determinante |H| o }} H_2\text{{): }} {sp.latex(H_gen.det())}")
+                
+                if len(puntos) > 0:
+                    st.header("3. Tabla de Clasificación de Óptimos")
+                    
+                    # Crear filas para tabla
+                    filas_html = ""
+                    for p in puntos:
+                        if p[x].evalf().is_imaginary or p[y].evalf().is_imaginary:
+                            continue
+                        det_p = H_gen.det().subs(p)
+                        fxx_p = fxx.subs(p)
+                        val_f = f.subs(p)
+                        
+                        if det_p > 0:
+                            tipo = "<b style='color:green;'>Mínimo Local</b>" if fxx_p > 0 else "<b style='color:blue;'>Máximo Local</b>"
+                        elif det_p < 0:
+                            tipo = "<b style='color:red;'>Punto Silla</b>"
+                        else:
+                            tipo = "<span style='color:gray;'>No decide</span>"
+                            
+                        filas_html += f"""
+                        <tr>
+                            <td>({sp.latex(p[x])}, {sp.latex(p[y])})<br><small>≈ ({p[x].evalf():.2f}, {p[y].evalf():.2f})</small></td>
+                            <td>{sp.latex(fxx_p)}</td>
+                            <td>{sp.latex(H_gen.subs(p)[0,1])}</td>
+                            <td>{sp.latex(det_p)}<br><small>≈ {det_p.evalf():.2f}</small></td>
+                            <td>{tipo}</td>
+                            <td>{sp.latex(val_f)}<br><small>≈ {val_f.evalf():.2f}</small></td>
+                        </tr>
+                        """
+                    
+                    tabla_completa = f"""
+                    <table border="1" style="width:100%; text-align:center; border-collapse:collapse; background-color:#faf8f5;">
+                        <tr style="background-color:#fff3cd; font-weight:bold;">
+                            <th>Punto (x,y)</th><th>f_xx (H1)</th><th>f_xy (Cruzada)</th><th>|H| (H2)</th><th>Tipo de Punto</th><th>Valor f(x,y)</th>
+                        </tr>
+                        {filas_html}
+                    </table>
+                    """
+                    st.html(tabla_completa)
+                else:
+                    st.warning("No se hallaron puntos críticos reales.")
+
+            # ==========================================
+            # CASO 2: OPTIMIZACIÓN CON RESTRICCIONES
+            # ==========================================
+            else:
+                lam = sp.Symbol('λ')
+                L = f - lam * g
+                
+                st.header("1. Función del Lagrangiano")
+                st.latex(rf"\mathcal{{L}}({sp.latex(x)}, {sp.latex(y)}, \lambda) = f({sp.latex(x)},{sp.latex(y)}) - \lambda \cdot g({sp.latex(x)},{sp.latex(y)}) = {sp.latex(L)}")
+                
+                st.header("2. Primeras Derivadas de la Restricción y el Lagrangiano")
+                gx = sp.diff(g, x)
+                gy = sp.diff(g, y)
+                Lx = sp.diff(L, x)
+                Ly = sp.diff(L, y)
+                Llam = sp.diff(L, lam)
+                
+                c1, c2 = st.columns(2)
+                c1.latex(rf"g_x = \frac{{\partial g}}{{\partial x}} = {sp.latex(gx)}")
+                c2.latex(rf"g_y = \frac{{\partial g}}{{\partial y}} = {sp.latex(gy)}")
+                
+                st.subheader("Sistema a resolver (Condiciones de Primer Orden):")
+                st.latex(rf"\begin{{cases}} \mathcal{{L}}_x = {sp.latex(Lx)} = 0 \\ \mathcal{{L}}_y = {sp.latex(Ly)} = 0 \\ \mathcal{{L}}_\lambda = {sp.latex(Llam)} = 0 \end{cases}")
+                
+                # Resolver
+                puntos = sp.solve([Lx, Ly, Llam], (x, y, lam), dict=True)
+                st.metric(label="Cantidad de puntos críticos encontrados", value=len(puntos))
+                
+                st.header("3. Derivadas de Segundo Orden del Lagrangiano")
+                Lxx = sp.diff(Lx, x)
+                Lyy = sp.diff(Ly, y)
+                Lxy = sp.diff(Lx, y)
+                
+                st.latex(rf"\mathcal{{L}}_{{xx}} = {sp.latex(Lxx)} \quad | \quad \mathcal{{L}}_{{yy}} = {sp.latex(Lyy)} \quad | \quad \mathcal{{L}}_{{xy}} = {sp.latex(Lxy)}")
+                
+                st.header("4. Matriz del Hessiano Orlado (HOR)")
+                HOR = sp.Matrix([[0, gx, gy], [gx, Lxx, Lxy], [gy, Lxy, Lyy]])
+                st.latex(rf"\text{{HOR}} = {sp.latex(HOR)}")
+                st.latex(rf"|\text{{HOR}}| = {sp.latex(HOR.det())}")
+                
+                if len(puntos) > 0:
+                    st.header("5. Resultados y Criterio del Hessiano Orlado")
+                    
+                    filas_html = ""
+                    for p in puntos:
+                        if p[x].evalf().is_imaginary or p[y].evalf().is_imaginary:
+                            continue
+                        det_p = HOR.det().subs(p)
+                        hor_eval = HOR.subs(p)
+                        val_f = f.subs({x: p[x], y: p[y]})
+                        
+                        tipo = "<b style='color:blue;'>Máximo Local sujeto a g</b>" if det_p > 0 else "<b style='color:green;'>Mínimo Local sujeto a g</b>" if det_p < 0 else "No decide"
+                        
+                        filas_html += f"""
+                        <tr>
+                            <td>({sp.latex(p[x])}, {sp.latex(p[y])})<br><small>≈ ({p[x].evalf():.2f}, {p[y].evalf():.2f})</small></td>
+                            <td>{sp.latex(p[lam])}<br><small>≈ {p[lam].evalf():.2f}</small></td>
+                            <td style='padding:8px;'>{sp.latex(hor_eval)}</td>
+                            <td>{sp.latex(det_p)}<br><small>≈ {det_p.evalf():.2f}</small></td>
+                            <td>{tipo}</td>
+                            <td>{sp.latex(val_f)}<br><small>≈ {val_f.evalf():.2f}</small></td>
+                        </tr>
+                        """
+                        
+                    tabla_completa = f"""
+                    <table border="1" style="width:100%; text-align:center; border-collapse:collapse; background-color:#faf8f5;">
+                        <tr style="background-color:#e2ece9; font-weight:bold;">
+                            <th>Punto (x,y)</th><th>Valor de λ</th><th>HOR Evaluado</th><th>|HOR| (Det)</th><th>Tipo de Óptimo</th><th>Valor f(x,y)</th>
+                        </tr>
+                        {filas_html}
+                    </table>
+                    """
+                    st.html(tabla_completa)
+                else:
+                    st.warning("No se hallaron puntos críticos analíticos para el Lagrangiano.")
+                    
+    except Exception as e:
+        st.error(f"Error en la entrada matemática: {e}. Revisa si faltan operadores `*` o `**`.")
