@@ -81,9 +81,9 @@ if calcular:
                 if len(puntos) > 0:
                     st.header("3. Tabla de Clasificación de Óptimos")
                     
-                    # Definición de la cabecera en formato Tabla de Markdown
-                    tabla_md = "| Punto $(x,y)$ | $f_{xx}$ ($H_1$) | $f_{xy}$ (Cruzada) | $|H|$ ($H_2$) | Tipo de Punto | Valor $f(x,y)$ |\n"
-                    tabla_md += "| :---: | :---: | :---: | :---: | :---: | :---: |\n"
+                    # Diseñamos la tabla con columnas limpias para evitar errores de formato
+                    tabla_md = "| Punto $(x,y)$ | Valor Approx. | $f_{xx}$ ($H_1$) | $f_{xy}$ | $|H|$ ($H_2$) | Tipo de Punto | Valor $f(x,y)$ |\n"
+                    tabla_md += "| :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n"
                     
                     for p in puntos:
                         if p[x].evalf().is_imaginary or p[y].evalf().is_imaginary:
@@ -99,19 +99,14 @@ if calcular:
                         else:
                             tipo = "⚪ *No decide*"
                             
-                        # Reemplazamos saltos de línea por espacios en expresiones LaTeX para la tabla
                         latex_punto = f"({sp.latex(p[x])}, {sp.latex(p[y])})".replace('\n', ' ')
+                        approx_punto = f"({p[x].evalf():.2f}, {p[y].evalf():.2f})"
                         latex_fxx = f"{sp.latex(fxx_p)}".replace('\n', ' ')
                         latex_fxy = f"{sp.latex(H_gen.subs(p)[0,1])}".replace('\n', ' ')
-                        latex_det = f"{sp.latex(det_p)}".replace('\n', ' ')
-                        latex_val = f"{sp.latex(val_f)}".replace('\n', ' ')
+                        latex_det = f"{sp.latex(det_p)} \\approx {det_p.evalf():.2f}".replace('\n', ' ')
+                        latex_val = f"{sp.latex(val_f)} \\approx {val_f.evalf():.2f}".replace('\n', ' ')
                         
-                        tabla_md += f"| ${latex_punto}$ <br> <small>≈ ({p[x].evalf():.2f}, {p[y].evalf():.2f})</small> " \
-                                    f"| ${latex_fxx}$ " \
-                                    f"| ${latex_fxy}$ " \
-                                    f"| ${latex_det}$ <br> <small>≈ {det_p.evalf():.2f}</small> " \
-                                    f"| {tipo} " \
-                                    f"| ${latex_val}$ <br> <small>≈ {val_f.evalf():.2f}</small> |\n"
+                        tabla_md += f"| ${latex_punto}$ | {approx_punto} | ${latex_fxx}$ | ${latex_fxy}$ | ${latex_det}$ | {tipo} | ${latex_val}$ |\n"
                     
                     st.markdown(tabla_md)
                 else:
@@ -161,9 +156,9 @@ if calcular:
                 if len(puntos) > 0:
                     st.header("5. Resultados y Criterio del Hessiano Orlado")
                     
-                    # Definición de la cabecera en formato Tabla de Markdown
-                    tabla_md = "| Punto $(x,y)$ | Valor de $\\lambda$ | HOR Evaluado | $|HOR|$ (Det) | Tipo de Óptimo | Valor $f(x,y)$ |\n"
-                    tabla_md += "| :---: | :---: | :---: | :---: | :---: | :---: |\n"
+                    # Estructura limpia de columnas en Markdown para el caso condicionado
+                    tabla_md = "| Punto $(x,y)$ | Coord. Approx. | Valor de $\\lambda$ | HOR Evaluado | $|HOR|$ (Det) | Tipo de Óptimo | Valor $f(x,y)$ |\n"
+                    tabla_md += "| :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n"
                     
                     for p in puntos:
                         if p[x].evalf().is_imaginary or p[y].evalf().is_imaginary:
@@ -172,21 +167,16 @@ if calcular:
                         hor_eval = HOR.subs(p)
                         val_f = f.subs({x: p[x], y: p[y]})
                         
-                        tipo = "🔵 **Máximo Local sujeto a $g$**" if det_p > 0 else "🟢 **Mínimo Local sujeto a $g$**" if det_p < 0 else "⚪ *No decide*"
+                        tipo = "🔵 **Máximo sujeto a $g$**" if det_p > 0 else "🟢 **Mínimo sujeto a $g$**" if det_p < 0 else "⚪ *No decide*"
                         
-                        # Reemplazamos saltos de línea internos por espacios para no quebrar las celdas Markdown
                         latex_punto = f"({sp.latex(p[x])}, {sp.latex(p[y])})".replace('\n', ' ')
-                        latex_lam = f"{sp.latex(p[lam])}".replace('\n', ' ')
+                        approx_punto = f"({p[x].evalf():.2f}, {p[y].evalf():.2f})"
+                        latex_lam = f"{sp.latex(p[lam])} \\approx {p[lam].evalf():.2f}".replace('\n', ' ')
                         latex_hor = f"{sp.latex(hor_eval)}".replace('\n', ' ')
-                        latex_det = f"{sp.latex(det_p)}".replace('\n', ' ')
-                        latex_val = f"{sp.latex(val_f)}".replace('\n', ' ')
+                        latex_det = f"{sp.latex(det_p)} \\approx {det_p.evalf():.2f}".replace('\n', ' ')
+                        latex_val = f"{sp.latex(val_f)} \\approx {val_f.evalf():.2f}".replace('\n', ' ')
                         
-                        tabla_md += f"| ${latex_punto}$ <br> <small>≈ ({p[x].evalf():.2f}, {p[y].evalf():.2f})</small> " \
-                                    f"| ${latex_lam}$ <br> <small>≈ {p[lam].evalf():.2f}</small> " \
-                                    f"| ${latex_hor}$ " \
-                                    f"| ${latex_det}$ <br> <small>≈ {det_p.evalf():.2f}</small> " \
-                                    f"| {tipo} " \
-                                    f"| ${latex_val}$ <br> <small>≈ {val_f.evalf():.2f}</small> |\n"
+                        tabla_md += f"| ${latex_punto}$ | {approx_punto} | ${latex_lam}$ | ${latex_hor}$ | ${latex_det}$ | {tipo} | ${latex_val}$ |\n"
                         
                     st.markdown(tabla_md)
                 else:
