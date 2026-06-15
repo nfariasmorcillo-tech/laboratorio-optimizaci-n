@@ -61,12 +61,9 @@ if calcular:
                 c2.latex(rf"f_y = \frac{{\partial f}}{{\partial y}} = {sp.latex(fy)}")
                 
                 st.subheader("Sistema a resolver para puntos estacionarios:")
-                # Usamos formateo clásico de Python para evitar que Streamlit se confunda con las llaves de LaTeX
+                # Concatenación segura para evitar errores de renderizado de llaves en Streamlit
                 sistema_libre = r"\begin{cases} " + sp.latex(fx) + r" = 0 \\ " + sp.latex(fy) + r" = 0 \end{cases}"
                 st.latex(sistema_libre)
-
-
-
                 
                 # Resolver
                 puntos = sp.solve([fx, fy], (x, y), dict=True)
@@ -85,7 +82,6 @@ if calcular:
                 if len(puntos) > 0:
                     st.header("3. Tabla de Clasificación de Óptimos")
                     
-                    # Crear filas para tabla
                     filas_html = ""
                     for p in puntos:
                         if p[x].evalf().is_imaginary or p[y].evalf().is_imaginary:
@@ -101,25 +97,15 @@ if calcular:
                         else:
                             tipo = "<span style='color:gray;'>No decide</span>"
                             
-                    filas_html += f"""
-                    <tr>
-                        <td>$({sp.latex(p[x])}, {sp.latex(p[y])})$<br><small>≈ ({p[x].evalf():.2f}, {p[y].evalf():.2f})</small></td>
-                        <td>${sp.latex(fxx_p)}$</td>
-                        <td>${sp.latex(H_gen.subs(p)[0,1])}$</td>
-                        <td>${sp.latex(det_p)}$<br><small>≈ {det_p.evalf():.2f}</small></td>
-                        <td>{tipo}</td>
-                        <td>${sp.latex(val_f)}$<br><small>≈ {val_f.evalf():.2f}</small></td>
-                    </tr>
-                    """
+                        # Construcción compacta en una sola línea lógica para prevenir errores de Markdown
+                        filas_html += f"<tr><td>$({sp.latex(p[x])}, {sp.latex(p[y])})$<br><small>≈ ({p[x].evalf():.2f}, {p[y].evalf():.2f})</small></td>" \
+                                      f"<td>${sp.latex(fxx_p)}$</td>" \
+                                      f"<td>${sp.latex(H_gen.subs(p)[0,1])}$</td>" \
+                                      f"<td>${sp.latex(det_p)}$<br><small>≈ {det_p.evalf():.2f}</small></td>" \
+                                      f"<td>{tipo}</td>" \
+                                      f"<td>${sp.latex(val_f)}$<br><small>≈ {val_f.evalf():.2f}</small></td></tr>"
                     
-                    tabla_completa = f"""
-                    <table border="1" style="width:100%; text-align:center; border-collapse:collapse; background-color:#faf8f5;">
-                        <tr style="background-color:#fff3cd; font-weight:bold;">
-                            <th>Punto (x,y)</th><th>f_xx (H1)</th><th>f_xy (Cruzada)</th><th>|H| (H2)</th><th>Tipo de Punto</th><th>Valor f(x,y)</th>
-                        </tr>
-                        {filas_html}
-                    </table>
-                    """
+                    tabla_completa = f'<table border="1" style="width:100%; text-align:center; border-collapse:collapse; background-color:#faf8f5;"><tr style="background-color:#fff3cd; font-weight:bold;"><th>Punto (x,y)</th><th>f_xx (H1)</th><th>f_xy (Cruzada)</th><th>|H| (H2)</th><th>Tipo de Punto</th><th>Valor f(x,y)</th></tr>{filas_html}</table>'
                     st.markdown(tabla_completa, unsafe_allow_html=True)
                 else:
                     st.warning("No se hallaron puntos críticos reales.")
@@ -146,9 +132,9 @@ if calcular:
                 c2.latex(rf"g_y = \frac{{\partial g}}{{\partial y}} = {sp.latex(gy)}")
                 
                 st.subheader("Sistema a resolver (Condiciones de Primer Orden):")
+                # Concatenación segura de llaves matemáticas
                 sistema_condicionado = r"\begin{cases} \mathcal{L}_x = " + sp.latex(Lx) + r" = 0 \\ \mathcal{L}_y = " + sp.latex(Ly) + r" = 0 \\ \mathcal{L}_\lambda = " + sp.latex(Llam) + r" = 0 \end{cases}"
                 st.latex(sistema_condicionado)
-
                 
                 # Resolver
                 puntos = sp.solve([Lx, Ly, Llam], (x, y, lam), dict=True)
@@ -179,25 +165,15 @@ if calcular:
                         
                         tipo = "<b style='color:blue;'>Máximo Local sujeto a g</b>" if det_p > 0 else "<b style='color:green;'>Mínimo Local sujeto a g</b>" if det_p < 0 else "No decide"
                         
-                        filas_html += f"""
-                        <tr>
-                            <td>$({sp.latex(p[x])}, {sp.latex(p[y])})$<br><small>≈ ({p[x].evalf():.2f}, {p[y].evalf():.2f})</small></td>
-                            <td>${sp.latex(p[lam])}$<br><small>≈ {p[lam].evalf():.2f}</small></td>
-                            <td style='padding:8px;'>${sp.latex(hor_eval)}$</td>
-                            <td>${sp.latex(det_p)}$<br><small>≈ {det_p.evalf():.2f}</small></td>
-                            <td>{tipo}</td>
-                            <td>${sp.latex(val_f)}$<br><small>≈ {val_f.evalf():.2f}</small></td>
-                        </tr>
-                        """
+                        # Construcción en una sola línea continua usando caracteres de escape \ para mantener el HTML limpio
+                        filas_html += f"<tr><td>$({sp.latex(p[x])}, {sp.latex(p[y])})$<br><small>≈ ({p[x].evalf():.2f}, {p[y].evalf():.2f})</small></td>" \
+                                      f"<td>${sp.latex(p[lam])}$<br><small>≈ {p[lam].evalf():.2f}</small></td>" \
+                                      f"<td style='padding:8px;'>${sp.latex(hor_eval)}$</td>" \
+                                      f"<td>${sp.latex(det_p)}$<br><small>≈ {det_p.evalf():.2f}</small></td>" \
+                                      f"<td>{tipo}</td>" \
+                                      f"<td>${sp.latex(val_f)}$<br><small>≈ {val_f.evalf():.2f}</small></td></tr>"
                         
-                    tabla_completa = f"""
-                    <table border="1" style="width:100%; text-align:center; border-collapse:collapse; background-color:#faf8f5;">
-                        <tr style="background-color:#e2ece9; font-weight:bold;">
-                            <th>Punto (x,y)</th><th>Valor de λ</th><th>HOR Evaluado</th><th>|HOR| (Det)</th><th>Tipo de Óptimo</th><th>Valor f(x,y)</th>
-                        </tr>
-                        {filas_html}
-                    </table>
-                    """
+                    tabla_completa = f'<table border="1" style="width:100%; text-align:center; border-collapse:collapse; background-color:#faf8f5;"><tr style="background-color:#e2ece9; font-weight:bold;"><th>Punto (x,y)</th><th>Valor de λ</th><th>HOR Evaluado</th><th>|HOR| (Det)</th><th>Tipo de Óptimo</th><th>Valor f(x,y)</th></tr>{filas_html}</table>'
                     st.markdown(tabla_completa, unsafe_allow_html=True)
                 else:
                     st.warning("No se hallaron puntos críticos analíticos para el Lagrangiano.")
