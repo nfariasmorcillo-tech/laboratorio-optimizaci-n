@@ -1,5 +1,6 @@
 import streamlit as st
 import sympy as sp
+import pandas as pd
 
 # Configuración de la página web
 st.set_page_config(page_title="Laboratorio de Optimización", page_icon="🧮", layout="wide")
@@ -81,11 +82,8 @@ if calcular:
                 if len(puntos) > 0:
                     st.header("3. Tabla de Clasificación de Óptimos")
                     
-                    # Diseñamos la tabla con columnas limpias para evitar errores de formato
-                    tabla_md = "| Punto $(x,y)$ | Valor Approx. | $f_{xx}$ ($H_1$) | $f_{xy}$ | $|H|$ ($H_2$) | Tipo de Punto | Valor $f(x,y)$ |\n"
-                    tabla_md += "| :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n"
-                    
-                    for p in puntos:
+                    datos_tabla = []
+                    for i, p in enumerate(puntos):
                         if p[x].evalf().is_imaginary or p[y].evalf().is_imaginary:
                             continue
                         det_p = H_gen.det().subs(p)
@@ -93,22 +91,24 @@ if calcular:
                         val_f = f.subs(p)
                         
                         if det_p > 0:
-                            tipo = "🟢 **Mínimo Local**" if fxx_p > 0 else "🔵 **Máximo Local**"
+                            tipo = "🟢 Mínimo Local" if fxx_p > 0 else "🔵 Máximo Local"
                         elif det_p < 0:
-                            tipo = "🔴 **Punto Silla**"
+                            tipo = "🔴 Punto Silla"
                         else:
-                            tipo = "⚪ *No decide*"
-                            
-                        latex_punto = f"({sp.latex(p[x])}, {sp.latex(p[y])})".replace('\n', ' ')
-                        approx_punto = f"({p[x].evalf():.2f}, {p[y].evalf():.2f})"
-                        latex_fxx = f"{sp.latex(fxx_p)}".replace('\n', ' ')
-                        latex_fxy = f"{sp.latex(H_gen.subs(p)[0,1])}".replace('\n', ' ')
-                        latex_det = f"{sp.latex(det_p)} \\approx {det_p.evalf():.2f}".replace('\n', ' ')
-                        latex_val = f"{sp.latex(val_f)} \\approx {val_f.evalf():.2f}".replace('\n', ' ')
+                            tipo = "⚪ No decide"
                         
-                        tabla_md += f"| ${latex_punto}$ | {approx_punto} | ${latex_fxx}$ | ${latex_fxy}$ | ${latex_det}$ | {tipo} | ${latex_val}$ |\n"
+                        datos_tabla.append({
+                            "ID": f"P{i+1}",
+                            "Punto (x, y) Analítico": f"({sp.latex(p[x])}, {sp.latex(p[y])})",
+                            "Punto (x, y) Decimal": f"({float(p[x].evalf()):.2f}, {float(p[y].evalf()):.2f})",
+                            "f_xx (H1)": str(fxx_p),
+                            "|H| (H2)": f"{str(det_p)} ({float(det_p.evalf()):.2f})",
+                            "Tipo de Óptimo": tipo,
+                            "Valor f(x,y)": f"{str(val_f)} ({float(val_f.evalf()):.2f})"
+                        })
                     
-                    st.markdown(tabla_md)
+                    df = pd.DataFrame(datos_tabla)
+                    st.dataframe(df, use_container_width=True, hide_index=True)
                 else:
                     st.warning("No se hallaron puntos críticos reales.")
 
@@ -156,29 +156,50 @@ if calcular:
                 if len(puntos) > 0:
                     st.header("5. Resultados y Criterio del Hessiano Orlado")
                     
-                    # Estructura limpia de columnas en Markdown para el caso condicionado
-                    tabla_md = "| Punto $(x,y)$ | Coord. Approx. | Valor de $\\lambda$ | HOR Evaluado | $|HOR|$ (Det) | Tipo de Óptimo | Valor $f(x,y)$ |\n"
-                    tabla_md += "| :---: | :---: | :---: | :---: | :---: | :---: | :---: |\n"
-                    
-                    for p in puntos:
+                    datos_tabla = []
+                    for i, p in enumerate(puntos):
                         if p[x].evalf().is_imaginary or p[y].evalf().is_imaginary:
                             continue
                         det_p = HOR.det().subs(p)
                         hor_eval = HOR.subs(p)
                         val_f = f.subs({x: p[x], y: p[y]})
                         
-                        tipo = "🔵 **Máximo sujeto a $g$**" if det_p > 0 else "🟢 **Mínimo sujeto a $g$**" if det_p < 0 else "⚪ *No decide*"
+                        tipo = "🔵 Máximo condicionado" if det_p > 0 else "🟢 Mínimo condicionado" if det_p < 0 else "⚪ No decide"
                         
-                        latex_punto = f"({sp.latex(p[x])}, {sp.latex(p[y])})".replace('\n', ' ')
-                        approx_punto = f"({p[x].evalf():.2f}, {p[y].evalf():.2f})"
-                        latex_lam = f"{sp.latex(p[lam])} \\approx {p[lam].evalf():.2f}".replace('\n', ' ')
-                        latex_hor = f"{sp.latex(hor_eval)}".replace('\n', ' ')
-                        latex_det = f"{sp.latex(det_p)} \\approx {det_p.evalf():.2f}".replace('\n', ' ')
-                        latex_val = f"{sp.latex(val_f)} \\approx {val_f.evalf():.2f}".replace('\n', ' ')
+                        # Convertimos la matriz HOR evaluada a un formato de texto compacto tipo MATLAB/Octave para la tabla
+                        matriz_texto = str(hor_eval.tolist()).replace('[', '').replace(']', '').replace(', ', ' ')
+                        # Formato amigable: filas separadas por barras
+                        filas_m = [str(hor_eval.row(r).tolist()).replace('[','').replace(']','') for r in range(3)]
+                        matriz_compacta = " | ".join(filas_m)
+
+                        datos_tabla.append({
+                            "ID": f"P{i+1}",
+                            "Punto (x, y)": f"({float(p[x].evalf()):.2f}, {float(p[y].evalf()):.2f})",
+                            "Valor λ": f"{float(p[lam].evalf()):.2f}",
+                            "Matriz HOR resumen": matriz_compacta,
+                            "|HOR| (Det)": f"{float(det_p.evalf()):.2f}",
+                            "Tipo de Óptimo": tipo,
+                            "Valor f(x,y)": f"{float(val_f.evalf()):.2f}"
+                        })
+                    
+                    df = pd.DataFrame(datos_tabla)
+                    
+                    # Mostramos la tabla perfectamente estructurada
+                    st.dataframe(df, use_container_width=True, hide_index=True)
+                    
+                    # --- DESGLES PEDAGÓGICO DE MATRICES ---
+                    st.subheader("🔍 Desglose matemático por cada punto:")
+                    for i, p in enumerate(puntos):
+                        if p[x].evalf().is_imaginary or p[y].evalf().is_imaginary:
+                            continue
+                        det_p = HOR.det().subs(p)
+                        hor_eval = HOR.subs(p)
                         
-                        tabla_md += f"| ${latex_punto}$ | {approx_punto} | ${latex_lam}$ | ${latex_hor}$ | ${latex_det}$ | {tipo} | ${latex_val}$ |\n"
-                        
-                    st.markdown(tabla_md)
+                        st.markdown(f"**Análisis Detallado del Punto P{i+1}** en $({sp.latex(p[x])}, {sp.latex(p[y])})$:")
+                        col_m1, col_m2 = st.columns(2)
+                        col_m1.latex(rf"\text{{HOR}}_{{P{i+1}}} = {sp.latex(hor_eval)}")
+                        col_m2.latex(rf"|\text{{HOR}}_{{P{i+1}}}| = {sp.latex(det_p)}")
+                        st.caption("---")
                 else:
                     st.warning("No se hallaron puntos críticos analíticos para el Lagrangiano.")
                     
