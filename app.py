@@ -34,7 +34,7 @@ st.sidebar.info(f"**Criterio KKT Activo ({objetivo}):**\n"
 calcular = st.sidebar.button("Calcular Optimización Condicionada", type="primary")
 
 # =========================================================================
-# MOTOR ALGEBRAICO CON EXPLICACIÓN PASO A PASO DE RESOLUCIÓN
+# MOTOR ALGEBRAICO CON NUMERACIÓN CORRELATIVA ESTRICTA DESDE LAS CPO
 # =========================================================================
 if calcular:
     try:
@@ -66,7 +66,7 @@ if calcular:
             l_simbolos = [sp.Symbol(f"\\lambda_{i+1}") for i in range(len(h_list))]
             m_simbolos = [sp.Symbol(f"\\mu_{j+1}") for j in range(len(g_list))]
 
-            # Construcción del Lagrangiano Aditivo Universal
+            # Construcción del Lagrangiano Aditivo
             L = f
             for h, lam in zip(h_list, l_simbolos):
                 L += lam * h
@@ -78,10 +78,11 @@ if calcular:
 
             st.header("2. Condiciones de Primer Orden (CPO)")
             st.latex(rf"\mathcal{{L}} = {sp.latex(L)}")
-            st.latex(rf"\mathcal{{L}}_x = {sp.latex(Lx)} = 0")
-            st.latex(rf"\mathcal{{L}}_y = {sp.latex(Ly)} = 0")
+            st.markdown("**Gradientes Base (Establecen el inicio de la numeración):**")
+            st.latex(rf"(1)\quad \mathcal{{L}}_x = {sp.latex(Lx)} = 0")
+            st.latex(rf"(2)\quad \mathcal{{L}}_y = {sp.latex(Ly)} = 0")
 
-            st.header("3. Desglose del Árbol de Supuestos Analíticos con Resolución de Sistemas")
+            st.header("3. Desglose del Árbol de Supuestos Analíticos")
             
             num_g = len(g_list)
             puntos_validos = []
@@ -90,6 +91,7 @@ if calcular:
             iteraciones = 2**num_g if num_g > 0 else 1
             for combinacion in range(iteraciones):
                 supuestos_texto = []
+                # El sistema base arranca estrictamente con las CPO (1) y (2)
                 eqs_base = [Lx, Ly] + h_list
                 sustituciones_caso = {}
                 
@@ -106,11 +108,12 @@ if calcular:
                 variables_a_resolver = [x, y] + l_simbolos + [m_simbolos[j] for j in range(num_g) if (combinacion >> j) & 1]
 
                 with st.expander(rf"🌿 Evaluando Ramificación: ${texto_caso_latex}$"):
-                    st.markdown("#### **Sistema Inicial de Ecuaciones Numeradas:**")
+                    st.markdown("#### **Sistema de Ecuaciones Secuencial Completo:**")
+                    # Se imprime de forma compacta y correlativa desde (1) en adelante
                     for idx_eq, eq in enumerate(eqs_con_reemplazo):
                         st.latex(rf"({idx_eq+1})\quad {sp.latex(eq)} = 0")
                     
-                    # --- MOTOR DE EXPLICACIÓN Y FACTORIZACIÓN ---
+                    # --- MOTOR DE RESOLUCIÓN PASO A PASO CON DETECTOR DE FACTORES ---
                     sistemas_a_evaluar = []
                     factorizacion_ocurrida = False
 
@@ -120,7 +123,7 @@ if calcular:
                             factores = [arg for arg in eq_factored.args if not arg.is_number]
                             if len(factores) > 1:
                                 factorizacion_ocurrida = True
-                                st.markdown(f"**🔍 Detección Algebraica:** La ecuación ({idx_eq+1}) es factorizable como:")
+                                st.markdown(f"**🔍 Detección Algebraica por Factorización:** La ecuación ({idx_eq+1}) se reescribe como producto de factores independientes:")
                                 st.latex(rf"{sp.latex(eq_factored)} = 0")
                                 
                                 for i_f, factor_activo in enumerate(factores):
@@ -133,32 +136,31 @@ if calcular:
                                     
                                     otros_factores = [factores[m] for m in range(len(factores)) if m != i_f]
                                     condicion_excluyente = " y ".join([f"${sp.latex(of)} \\neq 0$" for of in otros_factores])
-                                    sistemas_a_evaluar.append((nuevas_eqs, f"Sub-caso derivado de ({idx_eq+1}): Asumiendo ${sp.latex(factor_activo)} = 0$ (mientras {condicion_excluyente})", idx_eq+1, factor_activo))
+                                    sistemas_a_evaluar.append((nuevas_eqs, f"Sub-caso derivado de ({idx_eq+1}): Fijando ${sp.latex(factor_activo)} = 0$ (mientras {condicion_excluyente})", idx_eq+1, factor_activo))
                                 break
 
                     if not factorizacion_ocurrida:
-                        sistemas_a_evaluar.append((eqs_con_reemplazo, "Resolución directa del bloque simultáneo lineal/estructural", None, None))
+                        sistemas_a_evaluar.append((eqs_con_reemplazo, "Resolución simultánea analítica del bloque completo", None, None))
 
                     caminos_validos_en_este_supuesto = 0
                     
                     for eqs_sub_caso, desc_sub_caso, eq_origen_num, factor_usado in sistemas_a_evaluar:
                         st.markdown(f"##### **👉 {desc_sub_caso}:**")
                         
-                        # Explicación paso a paso del desarrollo manual simulado
                         if eq_origen_num is not None:
-                            st.markdown(f"1. De la ecuación de origen, evaluamos el factor nulo: ${sp.latex(factor_usado)} = 0$.")
-                            st.markdown(f"2. Sustituimos esta equivalencia matemática en el resto de las ecuaciones del sistema:")
+                            st.markdown(f"1. Aislamos la condición nula obtenida de la ecuación original **({eq_origen_num})**: ${sp.latex(factor_usado)} = 0$.")
+                            st.markdown(f"2. Sustituimos esta relación matemática para reducir las ecuaciones restantes de la secuencia original:")
                             for idx_s, eq_s in enumerate(eqs_sub_caso):
                                 if idx_s + 1 != eq_origen_num:
-                                    st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;• Reemplazando en ({idx_s+1}) se reduce a: ${sp.latex(eq_s)} = 0$")
+                                    st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;• Al sustituir y reducir en la ecuación **({idx_s+1})**, se transforma en: ${sp.latex(eq_s)} = 0$")
                         else:
-                            st.markdown("1. Despejamos el sistema combinando directamente los componentes lineales o determinantes estructurales:")
+                            st.markdown("1. Se combinan algebraicamente las ecuaciones lineales/estructurales de la secuencia completa para despejar los valores:")
 
                         try:
                             sols = sp.solve(eqs_sub_caso, variables_a_resolver, dict=True)
                             
                             if not sols:
-                                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;❌ **Resultado del análisis:** El sistema no tiene soluciones reales consistentes (Contradicción algebraica).")
+                                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;❌ **Estatus:** El cruce algebraico de este camino genera una contradicción analítica inmediata (Sistema Incompatible).")
                                 continue
                             
                             for sol in sols:
@@ -169,13 +171,12 @@ if calcular:
                                     cumple_kkt = True
                                     motivos_descarte = []
 
-                                    # Mostrar los despejes numéricos finales deducidos
-                                    st.markdown(f"3. **Valores calculados para este sub-caso:**")
+                                    st.markdown(f"3. **Resultados analíticos obtenidos para las variables del sistema:**")
                                     st.latex(rf"x = {sp.latex(sol[x])}, \quad y = {sp.latex(sol[y])}")
                                     
                                     mult_activos_print = [rf"{sp.latex(m_sym)} = {sp.latex(sol[m_sym])}" for m_sym in variables_a_resolver if m_sym in m_simbolos]
                                     if mult_activos_print:
-                                        st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;• Multiplicadores deducidos: {', '.join([f'${m}$' for m in mult_activos_print])}")
+                                        st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;• Multiplicadores de desigualdad determinados correspondientes: {', '.join([f'${m}$' for m in mult_activos_print])}")
 
                                     # 1. Validar región factible g(x,y) <= 0
                                     for idx_g, g_expr in enumerate(g_list):
@@ -184,30 +185,30 @@ if calcular:
                                             cumple_kkt = False
                                             motivos_descarte.append(f"g_{idx_g+1} > 0 ({val_g:.2f})")
 
-                                    # 2. Validación de signos según el objetivo seleccionado
+                                    # 2. Validación adaptativa de signos según el objetivo definido
                                     for mu_sym in m_simbolos:
                                         if mu_sym in sol:
                                             val_mu = float(sol[mu_sym].evalf())
                                             
                                             if objetivo == "Maximizar" and val_mu > 1e-4:
                                                 cumple_kkt = False
-                                                motivos_descarte.append(rf"\text{{Multiplicador }} {sp.latex(mu_sym)} = {val_mu:.2f} > 0 \text{{ (Incompatible con Maximización en Lagrangiano aditivo)}}")
+                                                motivos_descarte.append(rf"\text{{Multiplicador }} {sp.latex(mu_sym)} = {val_mu:.2f} > 0 \text{{ (Inadmisible para Maximizar en formato +mu)}}")
                                             
                                             elif objetivo == "Minimizar" and val_mu < -1e-4:
                                                 cumple_kkt = False
-                                                motivos_descarte.append(rf"\text{{Multiplicador }} {sp.latex(mu_sym)} = {val_mu:.2f} < 0 \text{{ (Incompatible con Minimización en Lagrangiano aditivo)}}")
+                                                motivos_descarte.append(rf"\text{{Multiplicador }} {sp.latex(mu_sym)} = {val_mu:.2f} < 0 \text{{ (Inadmisible para Minimizar en formato +mu)}}")
 
                                     if cumple_kkt:
                                         sol_copia = sol.copy()
                                         if sol_copia not in puntos_validos:
                                             puntos_validos.append(sol_copia)
                                         caminos_validos_en_este_supuesto += 1
-                                        st.markdown(rf"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;🎯 **Estatus:** ¡Punto crítico válido aprobado bajo el criterio de {objetivo}!")
+                                        st.markdown(rf"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;🎯 **Estatus:** ¡Punto crítico aprobado! Satisface los requisitos del teorema para {objetivo}.")
                                     else:
-                                        st.markdown(rf"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;⚠️ **Estatus:** Punto descartado analíticamente debido a: {', '.join(motivos_descarte)}.")
+                                        st.markdown(rf"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;⚠️ **Estatus:** Punto filtrado y descartado por: {', '.join(motivos_descarte)}.")
 
                         except Exception as e:
-                            st.error(f"Error procesando la sub-rama: {e}")
+                            st.error(f"Error procesando la sub-rama analítica: {e}")
 
                     if caminos_validos_en_este_supuesto > 0:
                         historial_supuestos.append({
@@ -230,7 +231,7 @@ if calcular:
             st.divider()
 
             # =========================================================================
-            # RESULTADOS FINALES Y CLASIFICACIÓN SEGUNDO ORDEN
+            # RESULTADOS FINALES Y SEGUN HORAS (HESSIANO ORLADO)
             # =========================================================================
             st.header("4. Matriz de Resultados Finales Aprobados")
             
