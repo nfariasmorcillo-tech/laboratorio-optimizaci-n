@@ -3,7 +3,7 @@ import sympy as sp
 import pandas as pd
 
 # Configuración de la página web
-st.set_page_config(page_title="Laboratorio de Optimización Avanzada", page_icon="🧮", layout="wide")
+st.set_config = st.set_page_config(page_title="Laboratorio de Optimización Avanzada", page_icon="🧮", layout="wide")
 
 st.title("🧮 Laboratorio de Optimización con Restricciones Mixtas")
 st.markdown("Análisis avanzado paso a paso mediante el **Árbol de Supuestos de Kuhn-Tucker**.")
@@ -24,12 +24,12 @@ st.sidebar.subheader("📐 Restricciones de Desigualdad")
 st.sidebar.markdown("Forma estándar: $g(x,y) \le 0$")
 desigualdades_str = st.sidebar.text_input("Restricciones de Desigualdad (separadas por ';'):", value="x**2 + y**2 - 25")
 
-st.sidebar.info("**Nota pedagógica:** Si una ecuación intermedia es factorizable ($A \cdot B = 0$), el sistema abrirá sub-casos independientes asumiendo que un factor es cero y el otro es diferente de cero, evitando la pérdida de raíces en las fronteras.")
+st.sidebar.info("**Nota pedagógica:** Lagrangiano corregido en forma aditiva: $\mathcal{L} = f + \lambda(h) + \mu(g)$.")
 
 calcular = st.sidebar.button("Calcular con Desglose Analítico", type="primary")
 
 # =========================================================================
-# MOTOR ALGEBRAICO CON ANÁLISIS DE FACTORES EXCLUYENTES
+# MOTOR ALGEBRAICO CON LAGRANGIANO CORREGIDO Y ANÁLISIS DE FACTORES
 # =========================================================================
 if calcular:
     try:
@@ -49,7 +49,7 @@ if calcular:
             with col_f:
                 st.latex(rf"\max / \min \quad f({sp.latex(x)}, {sp.latex(y)}) = {sp.latex(f)}")
             with col_r:
-                st.markdown("**Restricciones iniciales:**")
+                st.markdown("**Restricciones iniciales ($h=0$, $g \le 0$):**")
                 for idx, h in enumerate(h_list):
                     st.latex(rf"h_{idx+1}({sp.latex(x)}, {sp.latex(y)}) = {sp.latex(h)} = 0")
                 for idx, g in enumerate(g_list):
@@ -61,17 +61,21 @@ if calcular:
             l_simbolos = [sp.Symbol(f"\\lambda_{i+1}") for i in range(len(h_list))]
             m_simbolos = [sp.Symbol(f"\\mu_{j+1}") for j in range(len(g_list))]
 
-            # Construcción del Lagrangiano estándar
+            # FORMULA CORREGIDA: Construcción del Lagrangiano f + lambda*(h) + mu*(g)
             L = f
             for h, lam in zip(h_list, l_simbolos):
-                L -= lam * h
+                L += lam * h
             for g, mu in zip(g_list, m_simbolos):
-                L -= mu * g
+                L += mu * g
 
             Lx = sp.diff(L, x)
             Ly = sp.diff(L, y)
 
             st.header("2. Condiciones de Primer Orden")
+            st.markdown("**Expresión del Lagrangiano construido:**")
+            st.latex(rf"\mathcal{{L}} = {sp.latex(L)}")
+            
+            st.markdown("**Gradientes del sistema:**")
             st.latex(rf"\mathcal{{L}}_x = {sp.latex(Lx)} = 0")
             st.latex(rf"\mathcal{{L}}_y = {sp.latex(Ly)} = 0")
 
@@ -82,7 +86,8 @@ if calcular:
             historial_supuestos = []
 
             # Evaluar combinaciones de restricciones activas/inactivas
-            for combinacion in range(2**num_g):
+            iteraciones = 2**num_g if num_g > 0 else 1
+            for combinacion in range(iteraciones):
                 supuestos_texto = []
                 eqs_base = [Lx, Ly] + h_list
                 sustituciones_caso = {}
@@ -95,12 +100,12 @@ if calcular:
                         sustituciones_caso[m_simbolos[j]] = 0
                         supuestos_texto.append(rf"\mu_{j+1} = 0")
 
-                texto_caso_latex = " \quad y \quad ".join(supuestos_texto)
+                texto_caso_latex = " \quad y \quad ".join(supuestos_texto) if supuestos_texto else "Optimización Estándar"
                 eqs_con_reemplazo = [eq.subs(sustituciones_caso) for eq in eqs_base]
                 variables_a_resolver = [x, y] + l_simbolos + [m_simbolos[j] for j in range(num_g) if (combinacion >> j) & 1]
 
                 with st.expander(rf"🌿 Evaluando Ramificación: ${texto_caso_latex}$"):
-                    st.markdown("**Sistema base obtenido:**")
+                    st.markdown("**Sistema algebraico con multiplicadores fijos sustituidos:**")
                     for eq in eqs_con_reemplazo:
                         st.latex(rf"{sp.latex(eq)} = 0")
                     
@@ -111,31 +116,27 @@ if calcular:
                     for idx_eq, eq in enumerate(eqs_con_reemplazo):
                         eq_factored = sp.factor(eq)
                         if isinstance(eq_factored, sp.Mul):
-                            # Extraer factores que contengan variables del problema
                             factores = [arg for arg in eq_factored.args if not arg.is_number]
                             if len(factores) > 1:
                                 factorizacion_ocurrida = True
                                 st.markdown(rf"🔍 **Factorización Crítica Detectada:** Ecuación {idx_eq+1} se descompone en ${sp.latex(eq_factored)} = 0$")
                                 
-                                # Crear sistemas alternativos aplicando la regla: si un factor es cero, el otro es != 0
                                 for i_f, factor_activo in enumerate(factores):
                                     nuevas_eqs = []
                                     for k_eq, e_comp in enumerate(eqs_con_reemplazo):
                                         if k_eq == idx_eq:
-                                            nuevas_eqs.append(factor_activo) # Reemplaza la ecuación completa por el factor aislado
+                                            nuevas_eqs.append(factor_activo)
                                         else:
                                             nuevas_eqs.append(e_comp)
                                     
                                     otros_factores = [factores[m] for m in range(len(factores)) if m != i_f]
                                     condicion_excluyente = " y ".join([f"${sp.latex(of)} \\neq 0$" for of in otros_factores])
                                     sistemas_a_evaluar.append((nuevas_eqs, f"Sub-caso: ${sp.latex(factor_activo)} = 0$ (asumiendo {condicion_excluyente})"))
-                                break # Analizar una estructura factorizada a la vez por estabilidad
+                                break
 
-                    # Si no se detectaron factores explícitos, se resuelve el bloque compacto tradicional
                     if not factorizacion_ocurrida:
                         sistemas_a_evaluar.append((eqs_con_reemplazo, "Análisis directo de bloque simultáneo"))
 
-                    # Evaluar cada rama o sub-caso derivado
                     caminos_validos_en_este_supuesto = 0
                     
                     for eqs_sub_caso, desc_sub_caso in sistemas_a_evaluar:
@@ -153,7 +154,6 @@ if calcular:
                                 continue
                             
                             for sol in sols:
-                                # Rellenar los multiplicadores asumidos nulos
                                 for k, v in sustituciones_caso.items():
                                     sol[k] = sp.simplify(v)
                                 
@@ -190,7 +190,6 @@ if calcular:
                         except Exception as e:
                             st.error(f"Error procesando la sub-rama analítica: {e}")
 
-                    # Registrar en el historial de la tabla global
                     if caminos_validos_en_este_supuesto > 0:
                         historial_supuestos.append({
                             "Supuesto Evaluado": f"${texto_caso_latex}$",
@@ -226,7 +225,7 @@ if calcular:
                     mult_str = ", ".join([f"λ_{i+1}={float(p[l].evalf()):.2f}" for i, l in enumerate(l_simbolos)])
                     mu_str = ", ".join([f"μ_{j+1}={float(p[m].evalf()):.2f}" for j, m in enumerate(m_simbolos)])
                     
-                    # Identificar restricciones activas en la coordenada para armar el Hessiano Orlado exacto [cite: 112]
+                    # Detectar restricciones que se activan numéricamente en la coordenada (g == 0)
                     rest_activas_g = [g for g in g_list if abs(float(g.subs(p).evalf())) < 1e-4]
                     total_activas = h_list + rest_activas_g
                     k_l = len(total_activas)
@@ -238,7 +237,6 @@ if calcular:
                         H_orlado = sp.zeros(k_l, k_l).row_join(U_mat).col_join(U_mat.T.row_join(HL))
                         det_hor = float(H_orlado.subs(p).det().evalf())
                         
-                        # Criterio de signos del PDF de la Universidad de Piura [cite: 115, 116]
                         tipo_optimo = "🔵 Máximo Condicionado" if det_hor > 0 else "🟢 Mínimo Condicionado"
                     else:
                         HL = sp.Matrix([[sp.diff(Lx, x), sp.diff(Lx, y)], [sp.diff(Lx, y), sp.diff(Ly, y)]])
@@ -259,7 +257,7 @@ if calcular:
                 df_final = pd.DataFrame(datos_tabla_final)
                 st.dataframe(df_final, use_container_width=True, hide_index=True)
 
-                # Mostrar las matrices detalladas en LaTeX por punto
+                # Matrices detalladas en formato matemático LaTeX
                 st.subheader("🔍 Estructura del Hessiano Orlado Evaluado por Punto")
                 for idx, p in enumerate(puntos_validos):
                     rest_activas_g = [g for g in g_list if abs(float(g.subs(p).evalf())) < 1e-4]
