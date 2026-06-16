@@ -1,10 +1,9 @@
 import streamlit as st
 import sympy as sp
 import pandas as pd
-import numpy as np
 
 # Configuración de la página web
-st.set_config = st.set_page_config(page_title="Laboratorio de Optimización Avanzada", page_icon="🧮", layout="wide")
+st.set_page_config(page_title="Laboratorio de Optimización Avanzada", page_icon="🧮", layout="wide")
 
 st.title("🧮 Laboratorio de Optimización con Restricciones Mixtas")
 st.markdown("Análisis avanzado paso a paso mediante el **Árbol de Supuestos de Kuhn-Tucker**.")
@@ -25,12 +24,12 @@ st.sidebar.subheader("📐 Restricciones de Desigualdad")
 st.sidebar.markdown("Forma estándar: $g(x,y) \le 0$")
 desigualdades_str = st.sidebar.text_input("Restricciones de Desigualdad (separadas por ';'):", value="-x; 1 - y")
 
-st.sidebar.info("**Nota pedagógica:** El sistema evaluará ramificando los supuestos de $\mu_i > 0$ (activa) y $\mu_i = 0$ (inactiva), mostrando las contradicciones encontradas.")
+st.sidebar.info("**Nota pedagógica:** El descarte por contradicción solo ocurre si las ecuaciones se vuelven matemáticamente incompatibles al resolver el sistema.")
 
 calcular = st.sidebar.button("Calcular con Árbol de Supuestos", type="primary")
 
 # =========================================================================
-# MOTOR ALGEBRAICO CON REGISTRO DE CONTRADICCIONES
+# MOTOR ALGEBRAICO CON LOGICA CORREGIDA DE CONTRADICCIÓN
 # =========================================================================
 if calcular:
     try:
@@ -77,14 +76,12 @@ if calcular:
             st.latex(rf"\mathcal{{L}}_y = {sp.latex(Ly)} = 0")
 
             st.header("3. Rastreo del Árbol de Supuestos (Kuhn-Tucker)")
-            st.markdown("De acuerdo con la teoría, para cada restricción de desigualdad se asume inicialmente que está activa ($\mu_i > 0$). Si esto genera una contradicción matemática en el sistema de ecuaciones, se concluye que la restricción es inactiva ($\mu_i = 0$).")
-
+            
             num_g = len(g_list)
             puntos_validos = []
             historial_supuestos = []
 
             # Evaluar sistemáticamente las combinaciones de supuestos
-            # Cada combinación representa un escenario del árbol de decisión
             for combinacion in range(2**num_g):
                 supuestos_texto = []
                 eqs_sistema = [Lx, Ly] + h_list
@@ -93,90 +90,98 @@ if calcular:
                 # Configurar el escenario del supuesto
                 for j in range(num_g):
                     if (combinacion >> j) & 1:
-                        # Supuesto: Restricción Activa (mu_j > 0, g_j = 0)
+                        # Caso Activa: mu_j es variable libre a calcular, g_j = 0 entra al sistema
                         eqs_sistema.append(g_list[j])
-                        supuestos_texto.append(rf"\mu_{j+1} > 0 \text{{ (g}}_{j+1}\text{{ activa: }} {sp.latex(g_list[j])} = 0)")
+                        supuestos_texto.append(rf"\mu_{j+1} > 0")
                     else:
-                        # Supuesto alterno por descarte: Restricción Inactiva (mu_j = 0)
+                        # Caso Inactiva: mu_j = 0 de forma rígida
                         sustituciones_caso[m_simbolos[j]] = 0
-                        supuestos_texto.append(rf"\mu_{j+1} = 0 \text{{ (g}}_{j+1}\text{{ inactiva)}}")
+                        supuestos_texto.append(rf"\mu_{j+1} = 0")
 
-                texto_caso_latex = " y ".join(supuestos_texto)
+                texto_caso_latex = " \quad y \quad ".join(supuestos_texto)
                 
-                # Aplicar sustituciones de inactivas a las ecuaciones del gradiente
-                eqs_resueltas = [eq.subs(sustituciones_caso) for eq in eqs_sistema]
+                # Aplicar sustitución de los multiplicadores inactivos (=0) antes de resolver
+                eqs_con_reemplazo = [eq.subs(sustituciones_caso) for eq in eqs_sistema]
                 variables_a_resolver = [x, y] + l_simbolos + [m_simbolos[j] for j in range(num_g) if (combinacion >> j) & 1]
 
-                with st.expander(rf"🌿 Evaluando Supuesto: ${texto_caso_latex}$"):
-                    st.markdown("**Sistema de ecuaciones resultante para este camino:**")
-                    for eq in eqs_resueltas:
+                with st.expander(rf"🌿 Evaluando Ramificación: ${texto_caso_latex}$"):
+                    st.markdown("**Sistema algebraico tras el reemplazo:**")
+                    for eq in eqs_con_reemplazo:
                         st.latex(rf"{sp.latex(eq)} = 0")
                     
                     try:
-                        # Intentar resolver el sistema algebraico
-                        sols = sp.solve(eqs_resueltas, variables_a_resolver, dict=True)
+                        # Intentar resolver las ecuaciones del caso
+                        sols = sp.solve(eqs_con_reemplazo, variables_a_resolver, dict=True)
                         
+                        # --- VERIFICACIÓN DE CONTRADICCIÓN DIRECTA ---
                         if not sols:
-                            st.error("❌ **Contradicción / Inconsistencia:** El sistema no tiene soluciones bajo este supuesto. Por lo tanto, este camino queda descartado.")
+                            st.error("❌ **Contradicción detectada:** El reemplazo genera un sistema inconsistente (sin soluciones matemáticas). Este camino queda descartado inmediatamente.")
                             historial_supuestos.append({
                                 "Supuesto Evaluado": f"${texto_caso_latex}$",
-                                "Estado": "❌ Contradicción Algebraica",
-                                "Detalle / Acción": "Sistema inconsistente. Forzar multiplicadores activos a cero."
+                                "Fase Algebraica": "❌ Contradicción (Incompatible)",
+                                "Fase de Validación KKT": "No aplica",
+                                "Resultado": "Descartado"
                             })
                             continue
-
-                        # Si hay soluciones, validar restricciones lógicas colaterales (KKT)
+                        
+                        # Si no hay contradicción matemática, procesamos y evaluamos las raíces halladas
+                        st.info("📊 **Sistema Consistente:** Se hallaron soluciones matemáticas. Procediendo a verificar si son factibles en la región y cumplen los signos de KKT.")
+                        
                         caminos_validos_en_este_supuesto = 0
+                        
                         for sol in sols:
-                            # Completar los valores de los multiplicadores asumidos como 0
+                            # Rellenar los valores fijos que asumimos como 0 en este caso particular
                             for k, v in sustituciones_caso.items():
                                 sol[k] = sp.simplify(v)
                             
+                            # Validar únicamente si las coordenadas espaciales son reales
                             if sol[x].is_real and sol[y].is_real:
                                 cumple_kkt = True
-                                motivo_descarte = ""
+                                motivos_descarte = []
 
-                                # Validación 1: Verificar que no viole las demás desigualdades g(x,y) <= 0
+                                # Validación de Frontera Factible: g(x,y) <= 0
                                 for idx_g, g_expr in enumerate(g_list):
                                     val_g = float(g_expr.subs(sol).evalf())
                                     if val_g > 1e-4:
                                         cumple_kkt = False
-                                        motivo_descarte = f"Viola la restricción g_{idx_g+1} ({val_g:.2f} > 0)"
+                                        motivos_descarte.append(f"g_{idx_g+1} fuera de rango ({val_g:.2f} > 0)")
 
-                                # Validación 2: Verificar la condición de signo mu_i >= 0
+                                # Validación de Signo del Multiplicador: mu >= 0
                                 for mu_sym in m_simbolos:
                                     val_mu = float(sol[mu_sym].evalf())
                                     if val_mu < -1e-4:
                                         cumple_kkt = False
-                                        motivo_descarte = f"Multiplicador negativo ({sp.latex(mu_sym)} = {val_mu:.2f} < 0)"
+                                        motivos_descarte.append(f"Signo incorrecto ({sp.latex(mu_sym)} = {val_mu:.2f} < 0)")
 
                                 if cumple_kkt:
                                     sol_copia = sol.copy()
                                     if sol_copia not in puntos_validos:
                                         puntos_validos.append(sol_copia)
                                     caminos_validos_en_este_supuesto += 1
-                                    st.success(rf"✅ **Solución Factible Hallada:** $({float(sol[x].evalf()):.3f}, {float(sol[y].evalf()):.3f})$ con $\mu = {[float(sol[m].evalf()) for m in m_simbolos]}$")
+                                    st.success(rf"✅ **Punto Crítico Válido:** $({float(sol[x].evalf()):.3f}, {float(sol[y].evalf()):.3f})$")
                                 else:
-                                    st.warning(rf"⚠️ **Descartado por criterio KKT:** Solución matemática hallada pero inválida. Motivo: {motivo_descarte}.")
+                                    st.warning(rf"⚠️ **Raíz fuera de condiciones:** Coordenada matemática hallada pero inválida por: {', '.join(motivos_descarte)}.")
                         
                         if caminos_validos_en_este_supuesto > 0:
                             historial_supuestos.append({
                                 "Supuesto Evaluado": f"${texto_caso_latex}$",
-                                "Estado": "✅ Factible",
-                                "Detalle / Acción": f"Aporta {caminos_validos_en_este_supuesto} punto(s) crítico(s) válido(s)."
+                                "Fase Algebraica": "✅ Consistente",
+                                "Fase de Validación KKT": "✅ Satisface condiciones",
+                                "Resultado": f"Aporta {caminos_validos_en_este_supuesto} punto(s)"
                             })
                         else:
                             historial_supuestos.append({
                                 "Supuesto Evaluado": f"${texto_caso_latex}$",
-                                "Estado": "⚠️ Descartado",
-                                "Detalle / Acción": "Raíces fuera de la región factible o signos de multiplicadores incorrectos."
+                                "Fase Algebraica": "✅ Consistente",
+                                "Fase de Validación KKT": "⚠️ No cumple condiciones de signo/región",
+                                "Resultado": "Descartado post-evaluación"
                             })
 
                     except Exception as e:
                         st.error(f"Error analítico al resolver este camino: {e}")
 
             # Mostrar la tabla resumen del árbol de decisiones pedagógico
-            st.subheader("📋 Tabla Resumen del Proceso Analítico (Árbol de Supuestos)")
+            st.subheader("📋 Tabla Resumen del Proceso Analítico")
             df_arbol = pd.DataFrame(historial_supuestos)
             st.dataframe(df_arbol, use_container_width=True, hide_index=True)
 
@@ -197,7 +202,7 @@ if calcular:
                     mult_str = ", ".join([f"λ_{i+1}={float(p[l].evalf()):.2f}" for i, l in enumerate(l_simbolos)])
                     mu_str = ", ".join([f"μ_{j+1}={float(p[m].evalf()):.2f}" for j, m in enumerate(m_simbolos)])
                     
-                    # Detectar restricciones activas reales para armar el Hessiano Orlado exacto
+                    # Identificar cuáles restricciones están activas (g == 0) para armar el Hessiano Orlado exacto del PDF
                     rest_activas_g = [g for g in g_list if abs(float(g.subs(p).evalf())) < 1e-4]
                     total_activas = h_list + rest_activas_g
                     k_l = len(total_activas)
