@@ -34,7 +34,7 @@ st.sidebar.info(f"**Criterio KKT Activo ({objetivo}):**\n"
 calcular = st.sidebar.button("Calcular Optimización Condicionada", type="primary")
 
 # =========================================================================
-# MOTOR ALGEBRAICO CON NUMERACIÓN CORRELATIVA ESTRICTA DESDE LAS CPO
+# MOTOR ALGEBRAICO UNIFICADO CON SISTEMA KKT COMPLETO Y NUMERADO
 # =========================================================================
 if calcular:
     try:
@@ -49,12 +49,12 @@ if calcular:
             h_list = [sp.sympify(h.strip()) for h in igualdades_str.split(';') if h.strip()]
             g_list = [sp.sympify(g.strip()) for g in desigualdades_str.split(';') if g.strip()]
 
-            st.header(f"1. Estructura del Problema ({objetivo})")
+            st.header(f"1. Estructura del Problema")
             col_f, col_r = st.columns(2)
             with col_f:
                 st.latex(rf"\text{{{objetivo}}}\quad f({sp.latex(x)}, {sp.latex(y)}) = {sp.latex(f)}")
             with col_r:
-                st.markdown("**Restricciones en formato estándar:**")
+                st.markdown("**Planteamiento de Restricciones:**")
                 for idx, h in enumerate(h_list):
                     st.latex(rf"h_{idx+1}({sp.latex(x)}, {sp.latex(y)}) = {sp.latex(h)} = 0")
                 for idx, g in enumerate(g_list):
@@ -66,7 +66,7 @@ if calcular:
             l_simbolos = [sp.Symbol(f"\\lambda_{i+1}") for i in range(len(h_list))]
             m_simbolos = [sp.Symbol(f"\\mu_{j+1}") for j in range(len(g_list))]
 
-            # Construcción del Lagrangiano Aditivo
+            # Construcción del Lagrangiano
             L = f
             for h, lam in zip(h_list, l_simbolos):
                 L += lam * h
@@ -76,12 +76,57 @@ if calcular:
             Lx = sp.diff(L, x)
             Ly = sp.diff(L, y)
 
-            st.header("2. Condiciones de Primer Orden (CPO)")
+            # =========================================================================
+            # SECCIÓN NUEVA: SISTEMA FORMAL DE CONDICIONES KKT NUMERADO
+            # =========================================================================
+            st.header("2. Sistema de Condiciones de Kuhn-Tucker (KKT) Completo")
+            st.markdown("Expresión general del Lagrangiano aditivo:")
             st.latex(rf"\mathcal{{L}} = {sp.latex(L)}")
-            st.markdown("**Gradientes Base (Establecen el inicio de la numeración):**")
-            st.latex(rf"(1)\quad \mathcal{{L}}_x = {sp.latex(Lx)} = 0")
-            st.latex(rf"(2)\quad \mathcal{{L}}_y = {sp.latex(Ly)} = 0")
+            
+            st.markdown("#### **Ecuaciones del Sistema Condicional:**")
+            
+            # Contador de ecuaciones global
+            n_eq = 1
+            
+            st.markdown("**Condiciones de Primer Orden (CPO):**")
+            st.latex(rf"({n_eq})\quad \mathcal{{L}}_x = {sp.latex(Lx)} = 0")
+            n_eq += 1
+            st.latex(rf"({n_eq})\quad \mathcal{{L}}_y = {sp.latex(Ly)} = 0")
+            n_eq += 1
+            
+            if g_list:
+                st.markdown("**Condiciones de Complementariedad Holgada:**")
+                for j, g_expr in enumerate(g_list):
+                    st.latex(rf"({n_eq})\quad {sp.latex(m_simbolos[j])} \cdot \left( {sp.latex(g_expr)} \right) = 0")
+                    n_eq += 1
+            
+            if h_list:
+                st.markdown("**Restricciones de Igualdad Primal:**")
+                for i, h_expr in enumerate(h_list):
+                    st.latex(rf"({n_eq})\quad {sp.latex(h_expr)} = 0")
+                    n_eq += 1
+                    
+            st.markdown("**Condiciones de Frontera (Factibilidad Primal y Dual):**")
+            col_c1, col_c2 = st.columns(2)
+            with col_c1:
+                st.markdown("*(x, y) pertenece a D (Factibilidad Primal):*")
+                for g_expr in g_list:
+                    st.latex(rf"{sp.latex(g_expr)} \le 0")
+            with col_c2:
+                if objetivo == "Maximizar":
+                    st.markdown("*Signo de Multiplicadores para Máximos:*")
+                    for mu_sym in m_simbolos:
+                        st.latex(rf"{sp.latex(mu_sym)} \le 0")
+                else:
+                    st.markdown("*Signo de Multiplicadores para Mínimos:*")
+                    for mu_sym in m_simbolos:
+                        st.latex(rf"{sp.latex(mu_sym)} \ge 0")
 
+            st.divider()
+
+            # =========================================================================
+            # 3. ÁRBOLES DE SUPUESTOS
+            # =========================================================================
             st.header("3. Desglose del Árbol de Supuestos Analíticos")
             
             num_g = len(g_list)
@@ -91,29 +136,39 @@ if calcular:
             iteraciones = 2**num_g if num_g > 0 else 1
             for combinacion in range(iteraciones):
                 supuestos_texto = []
-                # El sistema base arranca estrictamente con las CPO (1) y (2)
                 eqs_base = [Lx, Ly] + h_list
                 sustituciones_caso = {}
                 
+                # Rastrear qué ecuaciones de complementariedad se usan en este escenario
+                ecuaciones_origen_kkt = [1, 2] # 1 y 2 siempre son Lx y Ly
+                comp_num_map = {} # mapear restricción con su número de ecuación KKT
+                
+                # Llenar mapa de numeración dinámica para las de complementariedad
+                curr_eq = 3
+                for j in range(num_g):
+                    comp_num_map[j] = curr_eq
+                    curr_eq += 1
+                
                 for j in range(num_g):
                     if (combinacion >> j) & 1:
+                        # Restricción activa: g_i = 0, deducido porque mu_i != 0 en su complementariedad
                         eqs_base.append(g_list[j])
-                        supuestos_texto.append(rf"\mu_{j+1} \neq 0")
+                        supuestos_texto.append(rf"\mu_{j+1} \neq 0 \implies g_{j+1}=0 \text{{ (por ec. {comp_num_map[j]})}}")
                     else:
+                        # Restricción inactiva: mu_i = 0
                         sustituciones_caso[m_simbolos[j]] = 0
-                        supuestos_texto.append(rf"\mu_{j+1} = 0")
+                        supuestos_texto.append(rf"\mu_{j+1} = 0 \text{{ (satisface ec. {comp_num_map[j]})}}")
 
-                texto_caso_latex = " \quad y \quad ".join(supuestos_texto) if supuestos_texto else "Sin restricciones de desigualdad"
+                texto_caso_latex = " \quad \wedge \quad ".join(supuestos_texto) if supuestos_texto else "Sin restricciones"
                 eqs_con_reemplazo = [eq.subs(sustituciones_caso) for eq in eqs_base]
                 variables_a_resolver = [x, y] + l_simbolos + [m_simbolos[j] for j in range(num_g) if (combinacion >> j) & 1]
 
                 with st.expander(rf"🌿 Evaluando Ramificación: ${texto_caso_latex}$"):
-                    st.markdown("#### **Sistema de Ecuaciones Secuencial Completo:**")
-                    # Se imprime de forma compacta y correlativa desde (1) en adelante
+                    st.markdown("##### **Ecuaciones vigentes reducidas para este escenario:**")
                     for idx_eq, eq in enumerate(eqs_con_reemplazo):
                         st.latex(rf"({idx_eq+1})\quad {sp.latex(eq)} = 0")
                     
-                    # --- MOTOR DE RESOLUCIÓN PASO A PASO CON DETECTOR DE FACTORES ---
+                    # --- DETECTOR DE FACTORES ---
                     sistemas_a_evaluar = []
                     factorizacion_ocurrida = False
 
@@ -123,7 +178,7 @@ if calcular:
                             factores = [arg for arg in eq_factored.args if not arg.is_number]
                             if len(factores) > 1:
                                 factorizacion_ocurrida = True
-                                st.markdown(f"**🔍 Detección Algebraica por Factorización:** La ecuación ({idx_eq+1}) se reescribe como producto de factores independientes:")
+                                st.markdown(f"**🔍 Detección Algebraica:** La ecuación ({idx_eq+1}) se descompone en factores:")
                                 st.latex(rf"{sp.latex(eq_factored)} = 0")
                                 
                                 for i_f, factor_activo in enumerate(factores):
@@ -136,31 +191,31 @@ if calcular:
                                     
                                     otros_factores = [factores[m] for m in range(len(factores)) if m != i_f]
                                     condicion_excluyente = " y ".join([f"${sp.latex(of)} \\neq 0$" for of in otros_factores])
-                                    sistemas_a_evaluar.append((nuevas_eqs, f"Sub-caso derivado de ({idx_eq+1}): Fijando ${sp.latex(factor_activo)} = 0$ (mientras {condicion_excluyente})", idx_eq+1, factor_activo))
+                                    sistemas_a_evaluar.append((nuevas_eqs, f"Sub-caso derivado de ({idx_eq+1}): Fijando ${sp.latex(factor_activo)} = 0$ (asumiendo {condicion_excluyente})", idx_eq+1, factor_activo))
                                 break
 
                     if not factorizacion_ocurrida:
-                        sistemas_a_evaluar.append((eqs_con_reemplazo, "Resolución simultánea analítica del bloque completo", None, None))
+                        sistemas_a_evaluar.append((eqs_con_reemplazo, "Resolución directa del bloque simultáneo lineal/estructural", None, None))
 
                     caminos_validos_en_este_supuesto = 0
                     
                     for eqs_sub_caso, desc_sub_caso, eq_origen_num, factor_usado in sistemas_a_evaluar:
-                        st.markdown(f"##### **👉 {desc_sub_caso}:**")
+                        st.markdown(f"###### **👉 {desc_sub_caso}:**")
                         
                         if eq_origen_num is not None:
-                            st.markdown(f"1. Aislamos la condición nula obtenida de la ecuación original **({eq_origen_num})**: ${sp.latex(factor_usado)} = 0$.")
-                            st.markdown(f"2. Sustituimos esta relación matemática para reducir las ecuaciones restantes de la secuencia original:")
+                            st.markdown(f"1. Tomamos la condición nula de la ecuación **({eq_origen_num})**: ${sp.latex(factor_usado)} = 0$.")
+                            st.markdown(f"2. Sustituimos esta equivalencia matemática en las demás ecuaciones del sistema:")
                             for idx_s, eq_s in enumerate(eqs_sub_caso):
                                 if idx_s + 1 != eq_origen_num:
-                                    st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;• Al sustituir y reducir en la ecuación **({idx_s+1})**, se transforma en: ${sp.latex(eq_s)} = 0$")
+                                    st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;• Ecuación **({idx_s+1})** se reduce a: ${sp.latex(eq_s)} = 0$")
                         else:
-                            st.markdown("1. Se combinan algebraicamente las ecuaciones lineales/estructurales de la secuencia completa para despejar los valores:")
+                            st.markdown("1. Se combinan las relaciones lineales directas de la secuencia para despejar los valores:")
 
                         try:
                             sols = sp.solve(eqs_sub_caso, variables_a_resolver, dict=True)
                             
                             if not sols:
-                                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;❌ **Estatus:** El cruce algebraico de este camino genera una contradicción analítica inmediata (Sistema Incompatible).")
+                                st.markdown("&nbsp;&nbsp;&nbsp;&nbsp;❌ **Estatus:** Camino inconsistente algebraicamente (Sistema sin solución real).")
                                 continue
                             
                             for sol in sols:
@@ -171,12 +226,12 @@ if calcular:
                                     cumple_kkt = True
                                     motivos_descarte = []
 
-                                    st.markdown(f"3. **Resultados analíticos obtenidos para las variables del sistema:**")
+                                    st.markdown(f"3. **Coordenadas e incógnitas resultantes halladas:**")
                                     st.latex(rf"x = {sp.latex(sol[x])}, \quad y = {sp.latex(sol[y])}")
                                     
                                     mult_activos_print = [rf"{sp.latex(m_sym)} = {sp.latex(sol[m_sym])}" for m_sym in variables_a_resolver if m_sym in m_simbolos]
                                     if mult_activos_print:
-                                        st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;• Multiplicadores de desigualdad determinados correspondientes: {', '.join([f'${m}$' for m in mult_activos_print])}")
+                                        st.markdown(f"&nbsp;&nbsp;&nbsp;&nbsp;• Multiplicadores calculados: {', '.join([f'${m}$' for m in mult_activos_print])}")
 
                                     # 1. Validar región factible g(x,y) <= 0
                                     for idx_g, g_expr in enumerate(g_list):
@@ -185,30 +240,30 @@ if calcular:
                                             cumple_kkt = False
                                             motivos_descarte.append(f"g_{idx_g+1} > 0 ({val_g:.2f})")
 
-                                    # 2. Validación adaptativa de signos según el objetivo definido
+                                    # 2. Validación estricta de signos de Kuhn-Tucker (Formato aditivo +mu)
                                     for mu_sym in m_simbolos:
                                         if mu_sym in sol:
                                             val_mu = float(sol[mu_sym].evalf())
                                             
                                             if objetivo == "Maximizar" and val_mu > 1e-4:
                                                 cumple_kkt = False
-                                                motivos_descarte.append(rf"\text{{Multiplicador }} {sp.latex(mu_sym)} = {val_mu:.2f} > 0 \text{{ (Inadmisible para Maximizar en formato +mu)}}")
+                                                motivos_descarte.append(rf"\text{{Multiplicador }} {sp.latex(mu_sym)} = {val_mu:.2f} > 0 \text{{ (Inadmisible en Maximización para +mu)}}")
                                             
                                             elif objetivo == "Minimizar" and val_mu < -1e-4:
                                                 cumple_kkt = False
-                                                motivos_descarte.append(rf"\text{{Multiplicador }} {sp.latex(mu_sym)} = {val_mu:.2f} < 0 \text{{ (Inadmisible para Minimizar en formato +mu)}}")
+                                                motivos_descarte.append(rf"\text{{Multiplicador }} {sp.latex(mu_sym)} = {val_mu:.2f} < 0 \text{{ (Inadmisible en Minimización para +mu)}}")
 
                                     if cumple_kkt:
                                         sol_copia = sol.copy()
                                         if sol_copia not in puntos_validos:
                                             puntos_validos.append(sol_copia)
                                         caminos_validos_en_este_supuesto += 1
-                                        st.markdown(rf"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;🎯 **Estatus:** ¡Punto crítico aprobado! Satisface los requisitos del teorema para {objetivo}.")
+                                        st.markdown(rf"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;🎯 **Estatus:** ¡Punto aprobado con éxito para el criterio de {objetivo}!")
                                     else:
-                                        st.markdown(rf"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;⚠️ **Estatus:** Punto filtrado y descartado por: {', '.join(motivos_descarte)}.")
+                                        st.markdown(rf"&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;⚠️ **Estatus:** Punto descartado por: {', '.join(motivos_descarte)}.")
 
                         except Exception as e:
-                            st.error(f"Error procesando la sub-rama analítica: {e}")
+                            st.error(f"Error procesando la sub-rama: {e}")
 
                     if caminos_validos_en_este_supuesto > 0:
                         historial_supuestos.append({
@@ -236,7 +291,7 @@ if calcular:
             st.header("4. Matriz de Resultados Finales Aprobados")
             
             if len(puntos_validos) == 0:
-                st.warning(f"No se encontraron puntos críticos óptimos locales que cumplan las condiciones estrictas de {objetivo} para KKT.")
+                st.warning(f"No se encontraron puntos críticos óptimos que cumplan las condiciones de {objetivo} para KKT.")
             else:
                 datos_tabla_final = []
                 for idx, p in enumerate(puntos_validos):
